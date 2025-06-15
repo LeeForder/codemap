@@ -131,11 +131,19 @@ def list_projects():
             try:
                 with open(claude_md, 'r') as f:
                     content = f.read()
-                    # Extract file count from the index
+                    # Count files by counting file entries in the index
+                    # Look for patterns like "### `filename`" or "- `filename`"
                     import re
-                    match = re.search(r'\*\*Total Files Indexed:\*\* (\d+)', content)
-                    if match:
-                        file_count = match.group(1)
+                    # Count Python module sections
+                    py_modules = len(re.findall(r'### `[^`]+\.py`', content))
+                    # Count other file references  
+                    other_files = len(re.findall(r'### `[^`]+\.[^`]+`', content)) - py_modules
+                    # Count simple file listings
+                    listed_files = len(re.findall(r'^- `[^`]+\.[^`]+`', content, re.MULTILINE))
+                    
+                    total = py_modules + other_files + listed_files
+                    if total > 0:
+                        file_count = str(total)
             except:
                 pass
         
