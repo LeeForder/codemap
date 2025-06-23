@@ -22,10 +22,33 @@ class CodeIndexer:
         self.last_update = datetime.now()
         self.analyzer = CodeAnalyzer()
     
+    def _parse_gitignore(self) -> List[str]:
+        """Parse .gitignore file and return list of patterns."""
+        patterns = []
+        gitignore_path = self.root_path / '.gitignore'
+        if gitignore_path.exists():
+            try:
+                with open(gitignore_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            patterns.append(line)
+            except:
+                pass
+        return patterns
+    
     def _should_ignore(self, path: Path) -> bool:
         """Check if a path should be ignored."""
-        parts = path.parts
+        # Always work with relative paths for consistency
+        try:
+            relative_path = path.relative_to(self.root_path)
+        except ValueError:
+            # Path is not under root_path
+            return True
+        
+        parts = relative_path.parts
         name = path.name
+        relative_str = str(relative_path)
         
         for pattern in self.config.ignore_patterns:
             if pattern.startswith('*'):
@@ -34,18 +57,27 @@ class CodeIndexer:
             elif pattern in parts or name == pattern:
                 return True
         
-        # Check .gitignore if it exists
-        gitignore_path = self.root_path / '.gitignore'
-        if gitignore_path.exists():
-            try:
-                with open(gitignore_path, 'r') as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and not line.startswith('#'):
-                            if line in str(path.relative_to(self.root_path)):
-                                return True
-            except:
-                pass
+        # Check .gitignore patterns
+        gitignore_patterns = self._parse_gitignore()
+        
+        for pattern in gitignore_patterns:
+            # Handle directory patterns (ending with /)
+            if pattern.endswith('/') and '**/' not in pattern:
+                dir_pattern = pattern.rstrip('/')
+                if dir_pattern in parts or name == dir_pattern:
+                    return True
+            # Handle glob patterns
+            elif '**/' in pattern:
+                # Simple handling of **/ patterns
+                suffix = pattern.split('**/')[-1].rstrip('/')
+                if suffix in parts or name == suffix:
+                    return True
+            # Handle exact matches
+            elif pattern == relative_str or pattern == name:
+                return True
+            # Handle simple patterns
+            elif pattern in relative_str:
+                return True
         
         return False
     
@@ -144,26 +176,64 @@ class CodeIndexer:
         self.file_cache = file_index
         return file_index
     
-    def generate_tree(self, file_index: Dict[str, FileInfo]) -> str:
-        """Generate a directory tree representation."""
+    def _build_full_tree_structure(self) -> Dict[str, List[str]]:
+        """Build a complete tree structure including all directories."""
         tree_dict = defaultdict(list)
         
-        for path in sorted(file_index.keys()):
-            parts = path.split(os.sep)
-            parent = os.sep.join(parts[:-1]) if len(parts) > 1 else ""
-            tree_dict[parent].append(parts[-1])
+        # Always ignore .git directory
+        default_ignore = {'.git'}
+        
+        # First, walk through all directories
+        for root, dirs, files in os.walk(self.root_path):
+            root_path = Path(root)
+            
+            # Filter out ignored directories before processing
+            filtered_dirs = []
+            for d in dirs:
+                if d in default_ignore:
+                    continue
+                dir_path = root_path / d
+                if not self._should_ignore(dir_path):
+                    filtered_dirs.append(d)
+            dirs[:] = filtered_dirs
+            
+            # Check depth
+            depth = len(root_path.relative_to(self.root_path).parts)
+            if depth > self.config.max_depth:
+                continue
+            
+            relative_root = str(root_path.relative_to(self.root_path))
+            if relative_root == ".":
+                relative_root = ""
+            
+            # Add directories (already filtered)
+            for d in sorted(dirs):
+                tree_dict[relative_root].append(d + "/")
+            
+            # Add files (both indexed and non-indexed)
+            for f in sorted(files):
+                file_path = root_path / f
+                if not self._should_ignore(file_path):
+                    tree_dict[relative_root].append(f)
+        
+        return tree_dict
+    
+    def generate_tree(self, file_index: Dict[str, FileInfo]) -> str:
+        """Generate a directory tree representation."""
+        tree_dict = self._build_full_tree_structure()
         
         def build_tree(parent: str, prefix: str = "") -> List[str]:
             lines = []
             if parent in tree_dict:
-                items = tree_dict[parent]
+                items = sorted(tree_dict[parent])
                 for i, item in enumerate(items):
                     is_last = i == len(items) - 1
                     current_prefix = "└── " if is_last else "├── "
                     lines.append(prefix + current_prefix + item)
                     
-                    child_path = os.path.join(parent, item) if parent else item
-                    if child_path in tree_dict:
+                    # If it's a directory (ends with /), recurse
+                    if item.endswith("/"):
+                        child_path = os.path.join(parent, item[:-1]) if parent else item[:-1]
                         extension = "    " if is_last else "│   "
                         lines.extend(build_tree(child_path, prefix + extension))
             return lines
