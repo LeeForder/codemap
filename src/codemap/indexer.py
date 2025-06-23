@@ -315,10 +315,8 @@ class CodeIndexer:
                     content.append("")
                 
                 if info.imports:
-                    imports_str = ", ".join(f"`{imp}`" for imp in sorted(set(info.imports))[:10])
-                    if len(info.imports) > 10:
-                        imports_str += f" and {len(info.imports) - 10} more"
-                    content.append(f"**Key Imports:** {imports_str}\n")
+                    imports_str = ", ".join(f"`{imp}`" for imp in sorted(set(info.imports)))
+                    content.append(f"**Imports:** {imports_str}\n")
                 
                 content.append("")
         
@@ -352,9 +350,7 @@ class CodeIndexer:
                     content.append("")
                 
                 if info.imports:
-                    imports_str = ", ".join(f"`{imp}`" for imp in sorted(set(info.imports))[:10])
-                    if len(info.imports) > 10:
-                        imports_str += f" and {len(info.imports) - 10} more"
+                    imports_str = ", ".join(f"`{imp}`" for imp in sorted(set(info.imports)))
                     content.append(f"**Imports:** {imports_str}\n")
                 
                 content.append("")
