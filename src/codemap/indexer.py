@@ -295,7 +295,11 @@ class CodeIndexer:
                     for cls in info.classes:
                         bases = f"({', '.join(cls['bases'])})" if cls.get('bases') else ""
                         doc = f" - {cls['docstring']}" if cls.get('docstring') else ""
-                        content.append(f"- `{cls['name']}{bases}` (line {cls['line']}){doc}")
+                        line_info = f"(line {cls['line']}"
+                        if cls.get('end_line') and cls['end_line'] != cls['line']:
+                            line_info += f"-{cls['end_line']}"
+                        line_info += ")"
+                        content.append(f"- `{cls['name']}{bases}` {line_info}{doc}")
                     content.append("")
                 
                 if info.functions:
@@ -303,7 +307,11 @@ class CodeIndexer:
                     for func in info.functions:
                         args = f"({', '.join(func.get('args', []))})" if func.get('args') else "()"
                         doc = f" - {func['docstring']}" if func.get('docstring') else ""
-                        content.append(f"- `{func['name']}{args}` (line {func['line']}){doc}")
+                        line_info = f"(line {func['line']}"
+                        if func.get('end_line') and func['end_line'] != func['line']:
+                            line_info += f"-{func['end_line']}"
+                        line_info += ")"
+                        content.append(f"- `{func['name']}{args}` {line_info}{doc}")
                     content.append("")
                 
                 if info.imports:
@@ -326,13 +334,21 @@ class CodeIndexer:
                     content.append("**Classes:**")
                     for cls in info.classes:
                         extends = f" extends {cls['extends']}" if cls.get('extends') else ""
-                        content.append(f"- `{cls['name']}{extends}` (line {cls['line']})")
+                        line_info = f"(line {cls['line']}"
+                        if cls.get('end_line') and cls['end_line'] != cls['line']:
+                            line_info += f"-{cls['end_line']}"
+                        line_info += ")"
+                        content.append(f"- `{cls['name']}{extends}` {line_info}")
                     content.append("")
                 
                 if info.functions:
                     content.append("**Functions:**")
                     for func in info.functions:
-                        content.append(f"- `{func['name']}()` (line {func['line']})")
+                        line_info = f"(line {func['line']}"
+                        if func.get('end_line') and func['end_line'] != func['line']:
+                            line_info += f"-{func['end_line']}"
+                        line_info += ")"
+                        content.append(f"- `{func['name']}()` {line_info}")
                     content.append("")
                 
                 if info.imports:

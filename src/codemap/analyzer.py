@@ -24,6 +24,7 @@ class CodeAnalyzer:
                     functions.append({
                         "name": node.name,
                         "line": node.lineno,
+                        "end_line": node.end_lineno if hasattr(node, 'end_lineno') else node.lineno,
                         "docstring": docstring.split('\n')[0] if docstring else "",
                         "args": [arg.arg for arg in node.args.args]
                     })
@@ -32,6 +33,7 @@ class CodeAnalyzer:
                     classes.append({
                         "name": node.name,
                         "line": node.lineno,
+                        "end_line": node.end_lineno if hasattr(node, 'end_lineno') else node.lineno,
                         "docstring": docstring.split('\n')[0] if docstring else "",
                         "bases": [base.id for base in node.bases if hasattr(base, 'id')]
                     })
@@ -62,13 +64,15 @@ class CodeAnalyzer:
             if name:
                 functions.append({
                     "name": name,
-                    "line": content[:match.start()].count('\n') + 1
+                    "line": content[:match.start()].count('\n') + 1,
+                    "end_line": None  # Not available with regex parsing
                 })
         
         for match in re.finditer(class_pattern, content):
             classes.append({
                 "name": match.group(1),
                 "line": content[:match.start()].count('\n') + 1,
+                "end_line": None,  # Not available with regex parsing
                 "extends": match.group(2) or None
             })
         
