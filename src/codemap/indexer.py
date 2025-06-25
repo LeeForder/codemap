@@ -351,8 +351,17 @@ class CodeIndexer:
                         existing_content = f.read()
                     
                     # Find and remove the existing code index section
-                    start_marker = "## Current Code Index"
-                    if start_marker in existing_content:
+                    # Support both old (# Current Code Index) and new (## Current Code Index) formats
+                    start_marker_new = "## Current Code Index"
+                    start_marker_old = "# Current Code Index"
+                    
+                    start_marker = None
+                    if start_marker_new in existing_content:
+                        start_marker = start_marker_new
+                    elif start_marker_old in existing_content:
+                        start_marker = start_marker_old
+                    
+                    if start_marker:
                         start_pos = existing_content.find(start_marker)
                         # Find the next same-level heading (##) or higher-level heading (#) or end of file
                         remaining = existing_content[start_pos:]
