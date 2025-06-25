@@ -388,6 +388,72 @@ def cleanup_projects():
         print("[cyan]No stale projects found[/cyan]")
 
 
+@app.command(name="debug", help="Enable debug logging and monitoring diagnostics")
+def debug_monitoring(
+    enable_logs: bool = typer.Option(
+        True,
+        "--enable-logs/--no-logs",
+        help="Enable debug logging for monitoring",
+    ),
+    test_file: bool = typer.Option(
+        False,
+        "--test-file",
+        help="Create a test file and monitor changes",
+    ),
+):
+    """Enable debug logging and run monitoring diagnostics."""
+    import logging
+    import tempfile
+    import os
+    from pathlib import Path
+    
+    if enable_logs:
+        # Configure logging
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        print("[green]Debug logging enabled[/green]")
+    
+    if test_file:
+        print("[cyan]Running file monitoring test...[/cyan]")
+        
+        # Create a temporary directory for testing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            test_file_path = temp_path / "test.py"
+            
+            print(f"[cyan]Test directory: {temp_path}[/cyan]")
+            
+            # Add the test directory to monitoring
+            config_manager = ConfigManager()
+            project = config_manager.add_project(temp_path)
+            
+            # Start monitoring
+            from .monitor import ProjectMonitor
+            monitor = ProjectMonitor(project)
+            monitor.start()
+            
+            try:
+                # Create test file
+                print("[yellow]Creating test file...[/yellow]")
+                test_file_path.write_text("def hello():\n    print('Hello, World!')\n")
+                
+                # Wait and modify
+                import time
+                time.sleep(2)
+                print("[yellow]Modifying test file...[/yellow]")
+                test_file_path.write_text("def hello():\n    print('Hello, Modified World!')\n")
+                
+                # Wait for processing
+                time.sleep(3)
+                print("[green]Test completed - check logs above for debug information[/green]")
+                
+            finally:
+                monitor.stop()
+                config_manager.remove_project(temp_path)
+
+
 @app.command(name="logs", help="Show daemon logs")
 def show_logs(
     follow: bool = typer.Option(
@@ -467,6 +533,149 @@ def show_logs(
         pass
     except Exception as e:
         print(f"[red]Error reading logs:[/red] {e}")
+
+
+@app.command(name="debug", help="Debug file monitoring issues")
+def debug_monitor(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose debugging",
+    ),
+    test_file: bool = typer.Option(
+        False,
+        "--test-file",
+        "-t",
+        help="Create a test file to verify monitoring",
+    ),
+):
+    """Debug file monitoring issues with detailed diagnostics."""
+    from rich.console import Console
+    from rich.panel import Panel
+    import platform
+    
+    console = Console()
+    
+    console.print(Panel("[bold]Codemap File Monitoring Debug[/bold]", expand=False))
+    
+    config_manager = ConfigManager()
+    current_dir = Path.cwd()
+    
+    # Check platform
+    console.print(f"[cyan]Platform:[/cyan] {platform.system()} ({platform.platform()})")
+    console.print(f"[cyan]Python:[/cyan] {sys.version}")
+    console.print(f"[cyan]Current directory:[/cyan] {current_dir}")
+    
+    # Check if current directory is monitored
+    projects = config_manager.list_projects()
+    is_monitored = any(str(p.path.resolve()) == str(current_dir.resolve()) for p in projects)
+    
+    if is_monitored:
+        console.print("[green]✓ Current directory is being monitored[/green]")
+    else:
+        console.print("[red]✗ Current directory is NOT being monitored[/red]")
+        console.print("Run 'codemap add .' to add it")
+        return
+    
+    # Check daemon status
+    if config_manager.is_daemon_running():
+        console.print("[green]✓ Daemon is running[/green]")
+        pid_file = config_manager.state_dir / "daemon.pid"
+        if pid_file.exists():
+            pid = pid_file.read_text().strip()
+            console.print(f"[cyan]  PID:[/cyan] {pid}")
+    else:
+        console.print("[red]✗ Daemon is NOT running[/red]")
+        console.print("Run 'codemap start' to start it")
+        return
+    
+    # Check log file
+    log_file = config_manager.state_dir / "daemon.log"
+    if log_file.exists():
+        console.print(f"[green]✓ Log file exists[/green]: {log_file}")
+        size = log_file.stat().st_size
+        console.print(f"[cyan]  Size:[/cyan] {size} bytes")
+        if size > 0:
+            console.print("[cyan]  Last 5 lines:[/cyan]")
+            lines = log_file.read_text().splitlines()
+            for line in lines[-5:]:
+                console.print(f"    {line}")
+        else:
+            console.print("[yellow]  Warning: Log file is empty[/yellow]")
+    else:
+        console.print("[red]✗ Log file does not exist[/red]")
+    
+    # Check CLAUDE.md
+    claude_file = current_dir / "CLAUDE.md"
+    if claude_file.exists():
+        console.print("[green]✓ CLAUDE.md exists[/green]")
+        mtime = claude_file.stat().st_mtime
+        console.print(f"[cyan]  Last modified:[/cyan] {time.ctime(mtime)}")
+        size = claude_file.stat().st_size
+        console.print(f"[cyan]  Size:[/cyan] {size} bytes")
+    else:
+        console.print("[red]✗ CLAUDE.md does not exist[/red]")
+    
+    # Test file monitoring if requested
+    if test_file:
+        console.print("\n[bold]Testing file monitoring...[/bold]")
+        
+        test_filename = f"test_monitor_{int(time.time())}.py"
+        test_path = current_dir / test_filename
+        
+        # Get initial CLAUDE.md mtime
+        initial_mtime = claude_file.stat().st_mtime if claude_file.exists() else 0
+        
+        console.print(f"Creating test file: {test_filename}")
+        test_path.write_text(f"""# Test file created at {time.ctime()}
+def test_function():
+    return "This is a test"
+""")
+        
+        console.print("Waiting for index update (up to 15 seconds)...")
+        
+        # Wait for update
+        updated = False
+        for i in range(30):  # 15 seconds with 0.5s intervals
+            if claude_file.exists():
+                current_mtime = claude_file.stat().st_mtime
+                if current_mtime > initial_mtime:
+                    console.print(f"[green]✓ Index updated after {(i+1)*0.5:.1f} seconds[/green]")
+                    
+                    # Check if test file is in index
+                    content = claude_file.read_text()
+                    if test_filename in content:
+                        console.print("[green]✓ Test file appears in index[/green]")
+                    else:
+                        console.print("[red]✗ Test file does NOT appear in index[/red]")
+                    
+                    updated = True
+                    break
+            
+            time.sleep(0.5)
+            console.print(".", end="")
+        
+        if not updated:
+            console.print("\n[red]✗ Index was NOT updated within 15 seconds[/red]")
+            console.print("This indicates a problem with file monitoring")
+        
+        # Clean up
+        if test_path.exists():
+            test_path.unlink()
+            console.print(f"\nCleaned up test file: {test_filename}")
+    
+    if verbose:
+        console.print(f"\n[bold]Configuration Details:[/bold]")
+        console.print(f"[cyan]State directory:[/cyan] {config_manager.state_dir}")
+        console.print(f"[cyan]Config file:[/cyan] {config_manager.config_file}")
+        
+        console.print(f"\n[bold]Monitored Projects:[/bold]")
+        for project in projects:
+            console.print(f"[cyan]Path:[/cyan] {project.path}")
+            console.print(f"[cyan]  Enabled:[/cyan] {project.enabled}")
+            console.print(f"[cyan]  Update delay:[/cyan] {project.update_delay}s")
+            console.print(f"[cyan]  File extensions:[/cyan] {', '.join(project.file_extensions)}")
 
 
 # Default command when no subcommand is provided
