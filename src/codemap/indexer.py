@@ -363,16 +363,23 @@ class CodeIndexer:
                     
                     if start_marker:
                         start_pos = existing_content.find(start_marker)
-                        # Find the next same-level heading (##) or higher-level heading (#) or end of file
-                        remaining = existing_content[start_pos:]
-                        next_section = re.search(r'\n#{1,2} (?!#)', remaining[len(start_marker):])
+                        # Find the next section that's NOT part of our index content
+                        # Look for headings that are same level or higher than our start marker
+                        remaining = existing_content[start_pos + len(start_marker):]
+                        
+                        if start_marker.startswith("##"):
+                            # New format: look for next ## or # heading
+                            next_section = re.search(r'\n#{1,2} (?!#)', remaining)
+                        else:
+                            # Old format: look for next # heading (same level)
+                            next_section = re.search(r'\n# (?!#)', remaining)
                         
                         if next_section:
                             end_pos = start_pos + len(start_marker) + next_section.start()
-                            existing_content = existing_content[:start_pos].rstrip() + "\n\n" + existing_content[end_pos:]
+                            existing_content = existing_content[:start_pos] + existing_content[end_pos:]
                         else:
                             # No next section found, remove everything after the marker
-                            existing_content = existing_content[:start_pos].rstrip()
+                            existing_content = existing_content[:start_pos]
                     
                     # Ensure proper spacing
                     existing_content = existing_content.rstrip()
