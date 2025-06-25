@@ -554,6 +554,7 @@ def debug_monitor(
     from rich.console import Console
     from rich.panel import Panel
     import platform
+    import time
     
     console = Console()
     
