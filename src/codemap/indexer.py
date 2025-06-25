@@ -257,14 +257,15 @@ class CodeIndexer:
         from .config import GlobalConfig
         global_config = GlobalConfig()
         
-        for info in file_index.values():
-            # Convert path to forward slashes for consistent output
-            info.relative_path = info.relative_path.replace('\\', '/')
-            
+        for info in file_index.values():            
             if info.path.name in global_config.config_files:
                 config_files.append(info)
             else:
                 code_files.append(info)
+        
+        # Helper function to convert paths to forward slashes for display
+        def normalize_path_for_display(path_str):
+            return path_str.replace('\\', '/')
         
         # Build the index content
         content = []
@@ -281,14 +282,16 @@ class CodeIndexer:
             content.append("## Configuration Files\n")
             for info in sorted(config_files, key=lambda x: x.relative_path):
                 desc = f" - {info.description}" if info.description else ""
-                content.append(f"- `{info.relative_path}`{desc}")
+                display_path = normalize_path_for_display(info.relative_path)
+                content.append(f"- `{display_path}`{desc}")
             content.append("")
         
         # Project code files - unified section for all code files
         if code_files:
             content.append("## Project Code Files\n")
             for info in sorted(code_files, key=lambda x: x.relative_path):
-                content.append(f"### `{info.relative_path}`")
+                display_path = normalize_path_for_display(info.relative_path)
+                content.append(f"### `{display_path}`")
                 if info.description:
                     content.append(f"*{info.description}*\n")
                 
