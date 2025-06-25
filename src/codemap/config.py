@@ -154,9 +154,27 @@ class ConfigManager:
             
             # Check if process exists
             import os
-            os.kill(pid, 0)
-            return True
-        except (ValueError, ProcessLookupError, PermissionError):
+            import platform
+            
+            if platform.system() == "Windows":
+                # Windows-specific process check
+                import subprocess
+                try:
+                    result = subprocess.run(
+                        ["tasklist", "/FI", f"PID eq {pid}"],
+                        capture_output=True,
+                        text=True,
+                        check=False
+                    )
+                    # If the PID appears in the output, the process exists
+                    return str(pid) in result.stdout
+                except Exception:
+                    return False
+            else:
+                # Unix-like systems
+                os.kill(pid, 0)
+                return True
+        except (ValueError, ProcessLookupError, PermissionError, OSError):
             # Clean up stale PID file
             self.pid_file.unlink(missing_ok=True)
             return False
