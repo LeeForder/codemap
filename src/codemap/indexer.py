@@ -250,24 +250,21 @@ class CodeIndexer:
         """Generate the complete CLAUDE.md content."""
         file_index = self.scan_directory()
         
-        # Group files by type
-        python_files = []
-        js_files = []
+        # Separate config files from code files
         config_files = []
-        other_files = []
+        code_files = []
         
         from .config import GlobalConfig
         global_config = GlobalConfig()
         
         for info in file_index.values():
-            if info.path.suffix == '.py':
-                python_files.append(info)
-            elif info.path.suffix in {'.js', '.jsx', '.ts', '.tsx'}:
-                js_files.append(info)
-            elif info.path.name in global_config.config_files:
+            # Convert path to forward slashes for consistent output
+            info.relative_path = info.relative_path.replace('\\', '/')
+            
+            if info.path.name in global_config.config_files:
                 config_files.append(info)
             else:
-                other_files.append(info)
+                code_files.append(info)
         
         # Build the index content
         content = []
@@ -287,10 +284,10 @@ class CodeIndexer:
                 content.append(f"- `{info.relative_path}`{desc}")
             content.append("")
         
-        # Python files
-        if python_files:
-            content.append("## Python Modules\n")
-            for info in sorted(python_files, key=lambda x: x.relative_path):
+        # Project code files - unified section for all code files
+        if code_files:
+            content.append("## Project Code Files\n")
+            for info in sorted(code_files, key=lambda x: x.relative_path):
                 content.append(f"### `{info.relative_path}`")
                 if info.description:
                     content.append(f"*{info.description}*\n")
@@ -298,8 +295,13 @@ class CodeIndexer:
                 if info.classes:
                     content.append("**Classes:**")
                     for cls in info.classes:
-                        bases = f"({', '.join(cls['bases'])})" if cls.get('bases') else ""
-                        doc = f" - {cls['docstring']}" if cls.get('docstring') else ""
+                        if info.path.suffix == '.py':
+                            bases = f"({', '.join(cls['bases'])})" if cls.get('bases') else ""
+                            doc = f" - {cls['docstring']}" if cls.get('docstring') else ""
+                        else:
+                            bases = f" extends {cls['extends']}" if cls.get('extends') else ""
+                            doc = ""
+                        
                         line_info = f"(line {cls['line']}"
                         if cls.get('end_line') and cls['end_line'] != cls['line']:
                             line_info += f"-{cls['end_line']}"
@@ -310,8 +312,13 @@ class CodeIndexer:
                 if info.functions:
                     content.append("**Functions:**")
                     for func in info.functions:
-                        args = f"({', '.join(func.get('args', []))})" if func.get('args') else "()"
-                        doc = f" - {func['docstring']}" if func.get('docstring') else ""
+                        if info.path.suffix == '.py':
+                            args = f"({', '.join(func.get('args', []))})" if func.get('args') else "()"
+                            doc = f" - {func['docstring']}" if func.get('docstring') else ""
+                        else:
+                            args = "()"
+                            doc = ""
+                        
                         line_info = f"(line {func['line']}"
                         if func.get('end_line') and func['end_line'] != func['line']:
                             line_info += f"-{func['end_line']}"
@@ -324,49 +331,6 @@ class CodeIndexer:
                     content.append(f"**Imports:** {imports_str}\n")
                 
                 content.append("")
-        
-        # JavaScript/TypeScript files
-        if js_files:
-            content.append("## JavaScript/TypeScript Modules\n")
-            for info in sorted(js_files, key=lambda x: x.relative_path):
-                content.append(f"### `{info.relative_path}`")
-                if info.description:
-                    content.append(f"*{info.description}*\n")
-                
-                if info.classes:
-                    content.append("**Classes:**")
-                    for cls in info.classes:
-                        extends = f" extends {cls['extends']}" if cls.get('extends') else ""
-                        line_info = f"(line {cls['line']}"
-                        if cls.get('end_line') and cls['end_line'] != cls['line']:
-                            line_info += f"-{cls['end_line']}"
-                        line_info += ")"
-                        content.append(f"- `{cls['name']}{extends}` {line_info}")
-                    content.append("")
-                
-                if info.functions:
-                    content.append("**Functions:**")
-                    for func in info.functions:
-                        line_info = f"(line {func['line']}"
-                        if func.get('end_line') and func['end_line'] != func['line']:
-                            line_info += f"-{func['end_line']}"
-                        line_info += ")"
-                        content.append(f"- `{func['name']}()` {line_info}")
-                    content.append("")
-                
-                if info.imports:
-                    imports_str = ", ".join(f"`{imp}`" for imp in sorted(set(info.imports)))
-                    content.append(f"**Imports:** {imports_str}\n")
-                
-                content.append("")
-        
-        # Other code files
-        if other_files:
-            content.append("## Other Code Files\n")
-            for info in sorted(other_files, key=lambda x: x.relative_path):
-                desc = f" - {info.description}" if info.description else ""
-                content.append(f"- `{info.relative_path}`{desc}")
-            content.append("")
         
         return "\n".join(content)
     
