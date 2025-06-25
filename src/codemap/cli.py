@@ -219,6 +219,7 @@ def _run_daemon_detached(config_manager):
     """Run the daemon detached from the terminal."""
     import subprocess
     import sys
+    import platform
     
     # Create the daemon process
     daemon_cmd = [
@@ -231,14 +232,27 @@ def _run_daemon_detached(config_manager):
     try:
         # Start the daemon process detached
         with open(log_file, 'w') as f:
-            process = subprocess.Popen(
-                daemon_cmd,
-                stdout=f,
-                stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,  # Detach from parent
-                cwd=os.getcwd(),
-            )
+            # Platform-specific process creation
+            if platform.system() == "Windows":
+                # Windows-specific flags for detached process
+                process = subprocess.Popen(
+                    daemon_cmd,
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+                    cwd=os.getcwd(),
+                )
+            else:
+                # Unix-like systems
+                process = subprocess.Popen(
+                    daemon_cmd,
+                    stdout=f,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                    start_new_session=True,  # Detach from parent
+                    cwd=os.getcwd(),
+                )
         
         # Give it a moment to start
         import time
@@ -262,6 +276,10 @@ def _run_daemon_detached(config_manager):
 @app.command(name="stop", help="Stop the codemap daemon")
 def stop_daemon():
     """Stop the codemap monitoring daemon."""
+    import signal
+    import platform
+    import time
+    
     config_manager = ConfigManager()
     
     if not config_manager.is_daemon_running():
@@ -273,23 +291,42 @@ def stop_daemon():
         with open(config_manager.pid_file, 'r') as f:
             pid = int(f.read().strip())
         
-        # Send SIGTERM
-        os.kill(pid, 15)
-        
-        # Wait a moment and check if it stopped
-        import time
-        time.sleep(1)
-        
-        try:
-            # Check if process still exists
-            os.kill(pid, 0)
-            # If we get here, process is still running, try SIGKILL
-            print("[yellow]Process didn't stop gracefully, forcing...[/yellow]")
-            os.kill(pid, 9)  # SIGKILL
-            time.sleep(0.5)
-        except ProcessLookupError:
-            # Process is gone, which is what we want
-            pass
+        if platform.system() == "Windows":
+            # Windows process termination
+            import subprocess
+            try:
+                # Try graceful termination first
+                subprocess.run(["taskkill", "/PID", str(pid)], check=True, capture_output=True)
+                time.sleep(1)
+                
+                # Check if process still exists
+                result = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True)
+                if str(pid) in result.stdout:
+                    # Force kill if still running
+                    print("[yellow]Process didn't stop gracefully, forcing...[/yellow]")
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=True, capture_output=True)
+                    time.sleep(0.5)
+            except subprocess.CalledProcessError:
+                # Process might already be gone
+                pass
+        else:
+            # Unix-like systems - use proper signal constants
+            # Send SIGTERM
+            os.kill(pid, signal.SIGTERM)
+            
+            # Wait a moment and check if it stopped
+            time.sleep(1)
+            
+            try:
+                # Check if process still exists
+                os.kill(pid, 0)
+                # If we get here, process is still running, try SIGKILL
+                print("[yellow]Process didn't stop gracefully, forcing...[/yellow]")
+                os.kill(pid, signal.SIGKILL)
+                time.sleep(0.5)
+            except ProcessLookupError:
+                # Process is gone, which is what we want
+                pass
         
         config_manager.clear_daemon_pid()
         print("[green]✓ Daemon stopped[/green]")
@@ -377,9 +414,48 @@ def show_logs(
     
     try:
         if follow:
-            # Follow mode using tail -f equivalent
-            import subprocess
-            subprocess.run(["tail", "-f", str(log_file)])
+            # Cross-platform tail -f implementation
+            import time
+            with open(log_file, 'r') as f:
+                # First, show the last N lines
+                f.seek(0, 2)  # Go to end of file
+                file_size = f.tell()
+                
+                # Read backwards to find the last N lines
+                lines_found = 0
+                position = file_size
+                chunk_size = 1024
+                
+                while lines_found < lines and position > 0:
+                    chunk_start = max(0, position - chunk_size)
+                    f.seek(chunk_start)
+                    chunk = f.read(position - chunk_start)
+                    lines_found += chunk.count('\n')
+                    position = chunk_start
+                
+                # Now read forward from the position we found
+                if lines_found > lines:
+                    # Skip extra lines at the beginning
+                    for _ in range(lines_found - lines):
+                        f.readline()
+                
+                # Print initial lines
+                while True:
+                    line = f.readline()
+                    if not line:
+                        break
+                    print(line.rstrip())
+                
+                # Follow mode - keep reading new lines
+                try:
+                    while True:
+                        line = f.readline()
+                        if line:
+                            print(line.rstrip())
+                        else:
+                            time.sleep(0.1)  # Small delay to avoid busy-waiting
+                except KeyboardInterrupt:
+                    pass
         else:
             # Show last N lines
             with open(log_file, 'r') as f:

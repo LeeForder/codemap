@@ -126,6 +126,7 @@ class CodeMonitor:
     async def run(self):
         """Run the monitoring service."""
         import signal
+        import platform
         
         self.running = True
         
@@ -134,8 +135,16 @@ class CodeMonitor:
             print(f"\nReceived signal {signum}, shutting down gracefully...")
             self.stop()
         
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
+        # Windows only supports SIGINT (Ctrl+C) and SIGBREAK
+        if platform.system() == "Windows":
+            signal.signal(signal.SIGINT, signal_handler)
+            # SIGBREAK is Windows-specific, similar to SIGTERM
+            if hasattr(signal, 'SIGBREAK'):
+                signal.signal(signal.SIGBREAK, signal_handler)
+        else:
+            # Unix-like systems support more signals
+            signal.signal(signal.SIGTERM, signal_handler)
+            signal.signal(signal.SIGINT, signal_handler)
         
         # Start monitoring all enabled projects
         for project in self.config_manager.list_projects():

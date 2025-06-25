@@ -233,7 +233,7 @@ class CodeIndexer:
                     
                     # If it's a directory (ends with /), recurse
                     if item.endswith("/"):
-                        child_path = os.path.join(parent, item[:-1]) if parent else item[:-1]
+                        child_path = str(Path(parent) / item[:-1]) if parent else item[:-1]
                         extension = "    " if is_last else "│   "
                         lines.extend(build_tree(child_path, prefix + extension))
             return lines
