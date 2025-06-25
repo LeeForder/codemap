@@ -47,24 +47,7 @@ class ProjectMonitor(FileSystemEventHandler):
         path_str = str(path)
         logger.debug(f"Processing check for: {path_str}")
         
-        # Skip if we recently processed this path (within 1 second)
-        with self._lock:
-            current_time = time.time()
-            
-            # Clean up old entries every 10 seconds
-            if current_time - self.recent_paths_cleanup_time > 10:
-                self.recent_paths.clear()
-                self.recent_paths_cleanup_time = current_time
-            
-            # Check if this path was recently processed
-            if path_str in self.recent_paths:
-                logger.debug(f"Recently processed, ignoring: {path_str}")
-                return False
-            
-            # Add to recent paths
-            self.recent_paths.add(path_str)
-        
-        # Don't process CLAUDE.md itself
+        # Don't process CLAUDE.md itself (check this first)
         if path.name == "CLAUDE.md":
             logger.debug(f"Ignoring CLAUDE.md: {path_str}")
             return False
@@ -79,12 +62,34 @@ class ProjectMonitor(FileSystemEventHandler):
         suffix_match = path.suffix in self.config.file_extensions
         config_match = path.name in GlobalConfig().config_files
         
+        if not (suffix_match or config_match):
+            logger.debug(f"File extension {path.suffix} not in monitored extensions")
+            return False
+        
         logger.debug(f"File extension check: {path.suffix} in {self.config.file_extensions} = {suffix_match}")
         logger.debug(f"Config file check: {path.name} in config files = {config_match}")
         
-        result = suffix_match or config_match
-        logger.debug(f"Final should_process result: {result}")
-        return result
+        # Only do minimal recent processing check to avoid duplicate processing within very short time
+        # This is mainly to handle Windows multiple events for the same file change
+        with self._lock:
+            current_time = time.time()
+            
+            # Clean up old entries every 30 seconds
+            if current_time - self.recent_paths_cleanup_time > 30:
+                self.recent_paths.clear()
+                self.recent_paths_cleanup_time = current_time
+            
+            # Only ignore if processed within last 100ms (very short window)
+            recent_key = f"{path_str}:{current_time // 0.1}"  # 100ms buckets
+            if recent_key in self.recent_paths:
+                logger.debug(f"Recently processed (within 100ms), ignoring: {path_str}")
+                return False
+            
+            # Add to recent paths with timestamp bucket
+            self.recent_paths.add(recent_key)
+        
+        logger.debug(f"Final should_process result: True")
+        return True
     
     def on_any_event(self, event: FileSystemEvent):
         """Handle any file system event."""
