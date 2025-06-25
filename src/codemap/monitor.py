@@ -14,9 +14,8 @@ from .config import ConfigManager
 from .indexer import CodeIndexer
 from .models import ProjectConfig
 
-# Set up logging for debugging
+# Set up logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class ProjectMonitor(FileSystemEventHandler):
@@ -32,9 +31,6 @@ class ProjectMonitor(FileSystemEventHandler):
         # Track recently processed paths to avoid duplicate events
         self.recent_paths: Set[str] = set()
         self.recent_paths_cleanup_time = time.time()
-        # Event deduplication for Windows multiple events
-        self.recent_events: Dict[str, float] = {}
-        self.event_dedup_timeout = 1.0  # 1 second window for deduplication
     
     def _should_process(self, event: FileSystemEvent) -> bool:
         """Check if an event should trigger an index update."""
@@ -96,26 +92,6 @@ class ProjectMonitor(FileSystemEventHandler):
         logger.debug(f"Event received: {event.event_type} for {event.src_path}")
         
         if event.event_type in ['created', 'modified', 'deleted', 'moved']:
-            # Check for duplicate events (Windows often sends multiple events)
-            current_time = time.time()
-            event_key = f"{event.src_path}:{event.event_type}"
-            
-            # Clean up old events periodically
-            if current_time - self.recent_paths_cleanup_time > 5.0:
-                self.recent_events = {k: v for k, v in self.recent_events.items() 
-                                    if current_time - v < self.event_dedup_timeout}
-                self.recent_paths_cleanup_time = current_time
-            
-            # Check if this is a duplicate event
-            if event_key in self.recent_events:
-                time_since_last = current_time - self.recent_events[event_key]
-                if time_since_last < self.event_dedup_timeout:
-                    logger.debug(f"Ignoring duplicate event: {event_key} (last seen {time_since_last:.2f}s ago)")
-                    return
-            
-            # Record this event
-            self.recent_events[event_key] = current_time
-            
             should_process = self._should_process(event)
             logger.debug(f"Should process event: {should_process}")
             
@@ -140,7 +116,6 @@ class ProjectMonitor(FileSystemEventHandler):
                     time_since_last = time.time() - self.last_event_time if has_pending else 0
                 
                 if has_pending:
-                    logger.debug(f"Pending update detected, time since last: {time_since_last:.2f}s")
                     # Wait for activity to settle
                     if time_since_last >= self.config.update_delay:
                         logger.debug(f"Processing update for {self.config.path}")
@@ -160,8 +135,6 @@ class ProjectMonitor(FileSystemEventHandler):
                             if consecutive_errors > 3:
                                 print(f"[{time.strftime('%H:%M:%S')}] Too many consecutive errors, waiting longer...")
                                 await asyncio.sleep(5)
-                    else:
-                        logger.debug(f"Waiting for settle time: {self.config.update_delay - time_since_last:.2f}s remaining")
                 
                 # Use shorter sleep for better responsiveness
                 await asyncio.sleep(0.2)
@@ -179,23 +152,8 @@ class ProjectMonitor(FileSystemEventHandler):
             return
             
         if self.observer is None:
-            import platform
-            if platform.system() == "Windows":
-                # Try native Windows observer first, fall back to polling
-                try:
-                    self.observer = Observer()
-                    logger.debug("Using native Windows Observer")
-                except Exception as e:
-                    logger.debug(f"Native observer failed: {e}, falling back to PollingObserver")
-                    try:
-                        from watchdog.observers.polling import PollingObserver
-                        self.observer = PollingObserver(timeout=0.5)
-                        logger.debug("Using PollingObserver with 0.5s timeout")
-                    except Exception as e2:
-                        print(f"[{time.strftime('%H:%M:%S')}] Failed to create any observer: {e2}")
-                        return
-            else:
-                self.observer = Observer()
+            self.observer = Observer()
+            logger.debug("Using native Observer")
             
             try:
                 # Use resolved path for consistency
