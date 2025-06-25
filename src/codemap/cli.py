@@ -200,17 +200,39 @@ def start_daemon(
 
 def _run_daemon_foreground(config_manager):
     """Run the daemon in foreground mode."""
+    import logging
+    import sys
+    
     config_manager.set_daemon_pid(os.getpid())
+    
+    # Configure logging for daemon (especially important for detached Windows process)
+    log_file = config_manager.state_dir / "daemon.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Starting codemap daemon")
     
     print("[green]Starting codemap daemon in foreground...[/green]")
     print("[yellow]Press Ctrl+C to stop[/yellow]")
     
+    from .monitor import CodeMonitor
     monitor = CodeMonitor()
     
     try:
         asyncio.run(monitor.run())
     except KeyboardInterrupt:
         print("\n[yellow]Daemon stopped[/yellow]")
+        logger.info("Daemon stopped by user")
+    except Exception as e:
+        logger.error(f"Daemon failed: {e}", exc_info=True)
+        print(f"[red]Daemon failed: {e}[/red]")
     finally:
         config_manager.clear_daemon_pid()
 
@@ -234,13 +256,17 @@ def _run_daemon_detached(config_manager):
         with open(log_file, 'w') as f:
             # Platform-specific process creation
             if platform.system() == "Windows":
-                # Windows-specific flags for detached process
+                # Windows-specific flags for detached process without visible window
                 process = subprocess.Popen(
                     daemon_cmd,
                     stdout=f,
                     stderr=subprocess.STDOUT,
                     stdin=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP | 
+                        subprocess.DETACHED_PROCESS | 
+                        subprocess.CREATE_NO_WINDOW
+                    ),
                     cwd=os.getcwd(),
                 )
             else:
