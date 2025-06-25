@@ -28,7 +28,8 @@ class ProjectMonitor(FileSystemEventHandler):
         if event.is_directory:
             return False
         
-        path = Path(event.src_path)
+        # Normalize path for Windows compatibility
+        path = Path(event.src_path).resolve()
         
         # Don't process CLAUDE.md itself
         if path.name == "CLAUDE.md":
@@ -70,8 +71,16 @@ class ProjectMonitor(FileSystemEventHandler):
             return
             
         if self.observer is None:
-            self.observer = Observer()
-            self.observer.schedule(self, str(self.config.path), recursive=True)
+            import platform
+            if platform.system() == "Windows":
+                # Use polling observer on Windows for better reliability
+                from watchdog.observers.polling import PollingObserver
+                self.observer = PollingObserver(timeout=1)
+            else:
+                self.observer = Observer()
+            
+            # Use resolved path for consistency
+            self.observer.schedule(self, str(self.config.path.resolve()), recursive=True)
             self.observer.start()
             
             # Initial index generation
@@ -116,7 +125,7 @@ class CodeMonitor:
     
     def _start_project_monitor(self, project_config: ProjectConfig):
         """Start monitoring a specific project."""
-        path_str = str(project_config.path)
+        path_str = str(project_config.path.resolve())
         
         if path_str not in self.monitors and project_config.enabled:
             monitor = ProjectMonitor(project_config)

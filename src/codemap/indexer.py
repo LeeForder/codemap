@@ -39,16 +39,21 @@ class CodeIndexer:
     
     def _should_ignore(self, path: Path) -> bool:
         """Check if a path should be ignored."""
+        # Normalize paths for Windows compatibility
+        path = path.resolve()
+        root_path = self.root_path.resolve()
+        
         # Always work with relative paths for consistency
         try:
-            relative_path = path.relative_to(self.root_path)
+            relative_path = path.relative_to(root_path)
         except ValueError:
             # Path is not under root_path
             return True
         
         parts = relative_path.parts
         name = path.name
-        relative_str = str(relative_path)
+        # Convert to forward slashes for consistent matching
+        relative_str = str(relative_path).replace('\\', '/')
         
         for pattern in self.config.ignore_patterns:
             if pattern.startswith('*'):
@@ -72,11 +77,11 @@ class CodeIndexer:
                 suffix = pattern.split('**/')[-1].rstrip('/')
                 if suffix in parts or name == suffix:
                     return True
-            # Handle exact matches
-            elif pattern == relative_str or pattern == name:
+            # Handle exact matches (normalize pattern for comparison)
+            elif pattern.replace('\\', '/') == relative_str or pattern == name:
                 return True
             # Handle simple patterns
-            elif pattern in relative_str:
+            elif pattern.replace('\\', '/') in relative_str:
                 return True
         
         return False
