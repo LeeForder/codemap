@@ -269,17 +269,17 @@ class CodeIndexer:
         
         # Build the index content
         content = []
-        content.append("# Current Code Index\n")
+        content.append("## Current Code Index\n")
         
         # Directory structure
-        content.append("## Directory Structure\n")
+        content.append("### Directory Structure\n")
         content.append("```")
         content.append(self.generate_tree(file_index))
         content.append("```\n")
         
         # Configuration files
         if config_files:
-            content.append("## Configuration Files\n")
+            content.append("### Configuration Files\n")
             for info in sorted(config_files, key=lambda x: x.relative_path):
                 desc = f" - {info.description}" if info.description else ""
                 display_path = normalize_path_for_display(info.relative_path)
@@ -288,10 +288,10 @@ class CodeIndexer:
         
         # Project code files - unified section for all code files
         if code_files:
-            content.append("## Project Code Files\n")
+            content.append("### Project Code Files\n")
             for info in sorted(code_files, key=lambda x: x.relative_path):
                 display_path = normalize_path_for_display(info.relative_path)
-                content.append(f"### `{display_path}`")
+                content.append(f"#### `{display_path}`")
                 if info.description:
                     content.append(f"*{info.description}*\n")
                 
