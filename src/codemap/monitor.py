@@ -39,11 +39,13 @@ class ProjectMonitor(FileSystemEventHandler):
     def _should_process(self, event: FileSystemEvent) -> bool:
         """Check if an event should trigger an index update."""
         if event.is_directory:
+            logger.debug(f"Ignoring directory event: {event.src_path}")
             return False
         
         # Normalize path for Windows compatibility
         path = Path(event.src_path).resolve()
         path_str = str(path)
+        logger.debug(f"Processing check for: {path_str}")
         
         # Skip if we recently processed this path (within 1 second)
         with self._lock:
@@ -56,6 +58,7 @@ class ProjectMonitor(FileSystemEventHandler):
             
             # Check if this path was recently processed
             if path_str in self.recent_paths:
+                logger.debug(f"Recently processed, ignoring: {path_str}")
                 return False
             
             # Add to recent paths
@@ -63,16 +66,25 @@ class ProjectMonitor(FileSystemEventHandler):
         
         # Don't process CLAUDE.md itself
         if path.name == "CLAUDE.md":
+            logger.debug(f"Ignoring CLAUDE.md: {path_str}")
             return False
         
         # Check if file should be ignored
         if self.indexer._should_ignore(path):
+            logger.debug(f"File should be ignored (gitignore/patterns): {path_str}")
             return False
         
         # Check if it's a relevant file type
         from .config import GlobalConfig
-        return (path.suffix in self.config.file_extensions or
-                path.name in GlobalConfig().config_files)
+        suffix_match = path.suffix in self.config.file_extensions
+        config_match = path.name in GlobalConfig().config_files
+        
+        logger.debug(f"File extension check: {path.suffix} in {self.config.file_extensions} = {suffix_match}")
+        logger.debug(f"Config file check: {path.name} in config files = {config_match}")
+        
+        result = suffix_match or config_match
+        logger.debug(f"Final should_process result: {result}")
+        return result
     
     def on_any_event(self, event: FileSystemEvent):
         """Handle any file system event."""
