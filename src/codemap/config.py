@@ -39,7 +39,8 @@ class GlobalConfig(BaseSettings):
         default=[
             '.py', '.js', '.jsx', '.ts', '.tsx', '.java', '.cpp', '.c',
             '.h', '.hpp', '.cs', '.rb', '.go', '.rs', '.php', '.swift',
-            '.kt', '.scala', '.r', '.m', '.mm', '.sh', '.bash', '.zsh', '.zig'
+            '.kt', '.scala', '.r', '.m', '.mm', '.sh', '.bash', '.zsh', '.zig',
+            '.lua'
         ]
     )
     

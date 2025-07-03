@@ -80,3 +80,96 @@ class CodeAnalyzer:
             imports.append(match.group(1))
         
         return functions, classes, imports
+    
+    @staticmethod
+    def analyze_lua(content: str) -> Tuple[List[Dict], List[Dict], List[str]]:
+        """Extract functions from Lua code."""
+        functions = []
+        classes = []  # Lua doesn't have classes, but may have metatables
+        imports = []
+        
+        # Regular expressions for Lua patterns
+        # Function patterns: function name(...), local function name(...), name = function(...)
+        func_patterns = [
+            # Standard function declaration
+            r'^\s*(?:local\s+)?function\s+(\w+(?:\.\w+)*)\s*\((.*?)\)',
+            # Table method declaration (obj:method or obj.method)
+            r'^\s*(\w+(?:\.\w+)*):(\w+)\s*=\s*function\s*\((.*?)\)',
+            r'^\s*(\w+(?:\.\w+)*)\.(\w+)\s*=\s*function\s*\((.*?)\)',
+            # Variable assignment to function
+            r'^\s*(?:local\s+)?(\w+)\s*=\s*function\s*\((.*?)\)'
+        ]
+        
+        # Require/import patterns
+        require_pattern = r'require\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)'
+        
+        lines = content.split('\n')
+        
+        # Track function ends using indentation and 'end' keywords
+        # Only capture top-level functions (not nested ones)
+        in_function = False
+        function_depth = 0
+        
+        for i, line in enumerate(lines):
+            line_num = i + 1
+            
+            # Track function depth
+            if re.match(r'^\s*(?:local\s+)?function\b', line) or re.search(r'=\s*function\s*\(', line):
+                function_depth += 1
+                
+            # Check for 'end' keyword
+            if re.match(r'^\s*end\b', line):
+                if function_depth > 0:
+                    function_depth -= 1
+            
+            # Only process top-level functions
+            if function_depth > 1:
+                continue
+            
+            # Check for function declarations
+            for pattern in func_patterns:
+                match = re.match(pattern, line)
+                if match:
+                    if len(match.groups()) == 3:  # Table method pattern
+                        table_name = match.group(1)
+                        method_name = match.group(2)
+                        args_str = match.group(3)
+                        func_name = f"{table_name}:{method_name}"
+                    elif len(match.groups()) == 2:  # Regular function pattern
+                        func_name = match.group(1)
+                        args_str = match.group(2)
+                    else:
+                        continue
+                    
+                    # Parse arguments
+                    args = [arg.strip() for arg in args_str.split(',') if arg.strip()]
+                    
+                    # Find the end of the function
+                    end_line = line_num
+                    indent_level = len(line) - len(line.lstrip())
+                    depth_count = 1
+                    
+                    for j in range(i + 1, len(lines)):
+                        current_line = lines[j]
+                        # Track nested functions
+                        if re.match(r'^\s*(?:local\s+)?function\b', current_line) or re.search(r'=\s*function\s*\(', current_line):
+                            depth_count += 1
+                        elif re.match(r'^\s*end\b', current_line):
+                            depth_count -= 1
+                            if depth_count == 0:
+                                end_line = j + 1
+                                break
+                    
+                    functions.append({
+                        "name": func_name,
+                        "line": line_num,
+                        "end_line": end_line,
+                        "args": args
+                    })
+                    break
+            
+            # Check for requires
+            require_matches = re.findall(require_pattern, line)
+            imports.extend(require_matches)
+        
+        return functions, classes, imports
