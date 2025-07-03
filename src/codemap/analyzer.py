@@ -332,3 +332,126 @@ class CodeAnalyzer:
                     imports.append(filename)
         
         return functions, classes, imports
+    
+    @staticmethod
+    def analyze_zig(content: str) -> Tuple[List[Dict], List[Dict], List[str]]:
+        """Extract functions, structs, and imports from Zig code."""
+        functions = []
+        classes = []  # Will store structs, enums, unions
+        imports = []
+        
+        # Regular expressions for Zig patterns
+        # Function pattern: pub fn name(...) type { or fn name(...) type {
+        func_pattern = r'^\s*(?:pub\s+)?(?:inline\s+)?fn\s+([a-zA-Z_]\w*)\s*\((.*?)\)(?:\s*([^{]+?))?\s*\{'
+        
+        # Struct/enum/union patterns
+        struct_pattern = r'^\s*(?:pub\s+)?const\s+([A-Z]\w*)\s*=\s*(struct|enum|union)(?:\([^)]*\))?\s*\{'
+        
+        # Import pattern: const name = @import("file");
+        import_pattern = r'^\s*(?:pub\s+)?const\s+\w+\s*=\s*@import\s*\(\s*"([^"]+)"\s*\)\s*;'
+        
+        # Test function pattern (special case)
+        test_pattern = r'^\s*test\s+"([^"]+)"\s*\{'
+        
+        lines = content.split('\n')
+        
+        for i, line in enumerate(lines):
+            line_num = i + 1
+            
+            # Check for functions
+            func_match = re.match(func_pattern, line)
+            if func_match:
+                func_name = func_match.group(1)
+                params_str = func_match.group(2).strip()
+                return_type = func_match.group(3).strip() if func_match.group(3) else ""
+                
+                # Parse parameters
+                params = []
+                if params_str:
+                    # Simple parameter parsing for Zig
+                    param_parts = params_str.split(',')
+                    for param in param_parts:
+                        param = param.strip()
+                        if param and ':' in param:
+                            param_name = param.split(':')[0].strip()
+                            params.append(param_name)
+                        elif param and param != '':
+                            params.append(param)
+                
+                # Find the end of the function by matching braces
+                end_line = line_num
+                brace_count = 1
+                
+                for j in range(i + 1, len(lines)):
+                    current_line = lines[j]
+                    brace_count += current_line.count('{') - current_line.count('}')
+                    if brace_count == 0:
+                        end_line = j + 1
+                        break
+                
+                functions.append({
+                    "name": func_name,
+                    "line": line_num,
+                    "end_line": end_line,
+                    "args": params,
+                    "return_type": return_type
+                })
+                continue
+            
+            # Check for test functions
+            test_match = re.match(test_pattern, line)
+            if test_match:
+                test_name = test_match.group(1)
+                
+                # Find the end of the test by matching braces
+                end_line = line_num
+                brace_count = 1
+                
+                for j in range(i + 1, len(lines)):
+                    current_line = lines[j]
+                    brace_count += current_line.count('{') - current_line.count('}')
+                    if brace_count == 0:
+                        end_line = j + 1
+                        break
+                
+                functions.append({
+                    "name": f'test "{test_name}"',
+                    "line": line_num,
+                    "end_line": end_line,
+                    "args": [],
+                    "return_type": ""
+                })
+                continue
+            
+            # Check for structs/enums/unions
+            struct_match = re.match(struct_pattern, line)
+            if struct_match:
+                struct_name = struct_match.group(1)
+                struct_type = struct_match.group(2)
+                
+                # Find the end of the struct by matching braces
+                end_line = line_num
+                brace_count = 1
+                
+                for j in range(i + 1, len(lines)):
+                    current_line = lines[j]
+                    brace_count += current_line.count('{') - current_line.count('}')
+                    if brace_count == 0:
+                        end_line = j + 1
+                        break
+                
+                classes.append({
+                    "name": struct_name,
+                    "line": line_num,
+                    "end_line": end_line,
+                    "type": struct_type
+                })
+                continue
+            
+            # Check for imports
+            import_match = re.match(import_pattern, line)
+            if import_match:
+                filename = import_match.group(1)
+                imports.append(filename)
+        
+        return functions, classes, imports

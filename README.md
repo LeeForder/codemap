@@ -7,7 +7,7 @@ A smart code indexer that maintains a real-time map of your codebase for AI assi
 
 ## Features
 
-🔍 **Smart Analysis**: Extracts functions, classes, and imports from Python, JavaScript/TypeScript, Lua, and AutoHotkey files  
+🔍 **Smart Analysis**: Extracts functions, classes, and imports from Python, JavaScript/TypeScript, Lua, AutoHotkey, and Zig files  
 ⚡ **Real-time Monitoring**: Watches for file changes and updates indexes automatically  
 🎯 **Multi-Project Support**: Monitor multiple projects simultaneously  
 📊 **Rich CLI**: Beautiful command-line interface with progress indicators  
@@ -97,8 +97,9 @@ The generated index includes:
 5. **JavaScript/TypeScript**: Functions and classes  
 6. **Lua Scripts**: Functions and imports
 7. **AutoHotkey Scripts**: Functions, labels, hotkeys, and includes
-8. **Other Files**: Additional source files
-9. **Recent Changes**: Last 10 modified files
+8. **Zig Code**: Functions, structs, enums, unions, and imports
+9. **Other Files**: Additional source files
+10. **Recent Changes**: Last 10 modified files
 
 ## Example Output
 
@@ -137,7 +138,7 @@ The generated index includes:
 ## How It Works
 
 1. **File Monitoring**: Uses `watchdog` for efficient file system monitoring
-2. **Code Analysis**: Parses Python, JavaScript/TypeScript, Lua, and AutoHotkey to extract structure
+2. **Code Analysis**: Parses Python, JavaScript/TypeScript, Lua, AutoHotkey, and Zig to extract structure
 3. **Smart Indexing**: Only re-analyzes changed files with MD5 hash comparison
 4. **Index Generation**: Creates/updates `CLAUDE.md` with current codebase map
 5. **Multi-Project**: Manages multiple projects from a central configuration

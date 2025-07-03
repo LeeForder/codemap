@@ -146,6 +146,12 @@ class CodeIndexer:
                     info.functions, info.classes, info.imports = self.analyzer.analyze_ahk(content)
                 except:
                     pass
+            elif path.suffix == '.zig':
+                try:
+                    content = path.read_text(encoding='utf-8')
+                    info.functions, info.classes, info.imports = self.analyzer.analyze_zig(content)
+                except:
+                    pass
             
             # Get file description from first line comment
             try:
@@ -330,7 +336,7 @@ class CodeIndexer:
                         if info.path.suffix == '.py':
                             args = f"({', '.join(func.get('args', []))})" if func.get('args') else "()"
                             doc = f" - {func['docstring']}" if func.get('docstring') else ""
-                        elif info.path.suffix in {'.lua', '.js', '.jsx', '.ts', '.tsx', '.ahk'}:
+                        elif info.path.suffix in {'.lua', '.js', '.jsx', '.ts', '.tsx', '.ahk', '.zig'}:
                             args = f"({', '.join(func.get('args', []))})" if func.get('args') else "()"
                             doc = ""
                         else:
