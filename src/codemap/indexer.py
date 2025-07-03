@@ -288,6 +288,7 @@ class CodeIndexer:
         # Build the index content
         content = []
         content.append("## Current Code Index\n")
+        content.append("**IMPORTANT:** This section (Current Code Index) is automatically updated in real-time by a third-party tool. Always consult this index first before using search tools to understand project structure and locate files efficiently.\n")
         
         # Directory structure
         content.append("### Directory Structure\n")
