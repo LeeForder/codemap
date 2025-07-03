@@ -108,7 +108,7 @@ The generated index includes:
 
 ### Directory Structure
 
-```
+\```
 ├── src/
 │   ├── main.py
 │   └── utils/
@@ -116,7 +116,7 @@ The generated index includes:
 ├── tests/
 │   └── test_main.py
 └── package.json
-```
+\```
 
 ### Configuration Files
 
