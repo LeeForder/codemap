@@ -288,7 +288,6 @@ class CodeIndexer:
         # Build the index content
         content = []
         content.append("## Current Code Index\n")
-        content.append("**IMPORTANT:** This section (Current Code Index) is automatically updated in real-time by a third-party tool. Always consult this index first before using search tools to understand project structure and locate files efficiently.\n")
         
         # Directory structure
         content.append("### Directory Structure\n")
@@ -371,6 +370,31 @@ class CodeIndexer:
                 try:
                     with open(index_path, 'r', encoding='utf-8') as f:
                         existing_content = f.read()
+                    
+                    # Insert the important notice under # CLAUDE.md if it doesn't exist
+                    notice_text = "**IMPORTANT:** The \"Current Code Index\" section below is automatically updated in real-time by a third-party tool. Always consult this index first before using search tools to understand project structure and locate files efficiently."
+                    
+                    # Check if notice already exists (avoid duplicates)
+                    if notice_text not in existing_content:
+                        # Find # CLAUDE.md header
+                        claude_header_match = re.search(r'^# CLAUDE\.md\s*$', existing_content, re.MULTILINE)
+                        if claude_header_match:
+                            # Find the end of the header line
+                            header_end = claude_header_match.end()
+                            
+                            # Find the next content (skip any blank lines)
+                            rest_content = existing_content[header_end:]
+                            next_content_match = re.search(r'\n\S', rest_content)
+                            
+                            if next_content_match:
+                                # Insert notice before the next content
+                                insert_pos = header_end + next_content_match.start() + 1
+                                existing_content = (existing_content[:insert_pos] + 
+                                                 notice_text + "\n\n" + 
+                                                 existing_content[insert_pos:])
+                            else:
+                                # No content after header, append notice
+                                existing_content = existing_content.rstrip() + "\n\n" + notice_text + "\n\n"
                     
                     # Find and remove the existing code index section
                     # Support both old (# Current Code Index) and new (## Current Code Index) formats
