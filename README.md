@@ -90,30 +90,23 @@ Codemap runs as a background daemon that monitors multiple projects simultaneous
 
 The generated index includes:
 
-1. **Project Overview**: Statistics and directory info
-2. **Directory Structure**: Visual tree representation  
-3. **Configuration Files**: Project configuration files
-4. **Python Modules**: Classes, functions, and imports
-5. **JavaScript/TypeScript**: Functions and classes  
-6. **Lua Scripts**: Functions and imports
-7. **AutoHotkey Scripts**: Functions, labels, hotkeys, and includes
-8. **Zig Code**: Functions, structs, enums, unions, and imports
-9. **Other Files**: Additional source files
-10. **Recent Changes**: Last 10 modified files
+1. **Directory Structure**: Visual tree representation  
+2. **Configuration Files**: Project configuration files
+3. **Project Code Files**: Detailed analysis of source files including:
+   - **Python**: Classes, functions, and imports with docstrings
+   - **JavaScript/TypeScript**: Functions and classes with signatures
+   - **Lua**: Functions and imports with line ranges
+   - **AutoHotkey**: Functions, labels, hotkeys, and includes
+   - **Zig**: Functions, structs, enums, unions, and imports
 
 ## Example Output
 
 ```markdown
-# Current Code Index
+## Current Code Index
 
-*Last updated: 2024-06-14 16:22:38*
+**IMPORTANT:** This section (Current Code Index) is automatically updated in real-time by a third-party tool. Always consult this index first before using search tools to understand project structure and locate files efficiently.
 
-## Project Overview
-
-**Root Directory:** `my-project`
-**Total Files Indexed:** 42
-
-## Directory Structure
+### Directory Structure
 
 ```
 ├── src/
@@ -125,14 +118,26 @@ The generated index includes:
 └── package.json
 ```
 
-## Python Modules
+### Configuration Files
 
-### `src/main.py`
+- `package.json`
+- `pyproject.toml`
+
+### Project Code Files
+
+#### `src/main.py`
 **Functions:**
-- `main()` (line 10) - Application entry point
-- `setup_logging()` (line 5) - Configure logging
+- `main()` (line 10-25) - Application entry point
+- `setup_logging()` (line 5-8) - Configure logging
 
-**Key Imports:** `os`, `sys`, `logging`
+**Imports:** `logging`, `os`, `sys`
+
+#### `src/utils/helpers.py`
+**Functions:**
+- `format_data(data)` (line 3-7) - Format data for display
+- `validate_input(value)` (line 10-15) - Validate user input
+
+**Imports:** `json`, `re`
 ```
 
 ## How It Works
