@@ -173,3 +173,162 @@ class CodeAnalyzer:
             imports.extend(require_matches)
         
         return functions, classes, imports
+    
+    @staticmethod
+    def analyze_ahk(content: str) -> Tuple[List[Dict], List[Dict], List[str]]:
+        """Extract functions, labels, and includes from AutoHotkey v1.1 code."""
+        functions = []
+        classes = []
+        imports = []
+        
+        # Regular expressions for AHK patterns
+        # Function pattern: FunctionName(params) { - must start line and not be keywords
+        func_pattern = r'^\s*([A-Za-z_]\w*)\s*\(\s*(.*?)\s*\)\s*\{'
+        
+        # Label patterns: LabelName: and hotkey patterns like ^j::, F1::, etc.
+        label_pattern = r'^\s*(\w+):\s*$'
+        hotkey_pattern = r'^\s*((?:[~*$+^!#<>]*[a-zA-Z0-9_\s&]+|[F]\d{1,2}|[a-zA-Z0-9_]+))::\s*'
+        
+        # Class pattern: class ClassName {
+        class_pattern = r'^\s*class\s+(\w+)(?:\s+extends\s+(\w+))?\s*\{'
+        
+        # Include patterns: #Include or #IncludeAgain
+        include_pattern = r'^\s*#Include(?:Again)?\s+(?:<([^>]+)>|"([^"]+)"|([^\s]+))'
+        
+        lines = content.split('\n')
+        
+        for i, line in enumerate(lines):
+            line_num = i + 1
+            
+            # Check for functions
+            func_match = re.match(func_pattern, line)
+            if func_match:
+                func_name = func_match.group(1)
+                
+                # Skip common keywords that aren't functions
+                if func_name.lower() in ['if', 'else', 'while', 'for', 'loop', 'try', 'catch']:
+                    continue
+                    
+                params_str = func_match.group(2).strip()
+                
+                # Parse parameters
+                if params_str:
+                    # Split by comma and clean up parameters
+                    params = [param.strip() for param in params_str.split(',') if param.strip()]
+                    # Remove default values (param := default)
+                    params = [param.split(':=')[0].strip() for param in params]
+                else:
+                    params = []
+                
+                # Find the end of the function by matching braces
+                end_line = line_num
+                brace_count = 1
+                
+                for j in range(i + 1, len(lines)):
+                    current_line = lines[j]
+                    # Count opening and closing braces
+                    brace_count += current_line.count('{') - current_line.count('}')
+                    if brace_count == 0:
+                        end_line = j + 1
+                        break
+                
+                functions.append({
+                    "name": func_name,
+                    "line": line_num,
+                    "end_line": end_line,
+                    "args": params,
+                    "type": "function"
+                })
+                continue
+            
+            # Check for labels (but not hotkeys)
+            label_match = re.match(label_pattern, line)
+            if label_match and not re.match(hotkey_pattern, line):
+                label_name = label_match.group(1)
+                
+                # Find the end of the label (until next label, function, or return)
+                end_line = line_num
+                for j in range(i + 1, len(lines)):
+                    next_line = lines[j].strip()
+                    if (re.match(label_pattern, next_line) or 
+                        re.match(func_pattern, next_line) or
+                        re.match(class_pattern, next_line) or
+                        next_line.lower() == 'return'):
+                        end_line = j
+                        break
+                else:
+                    end_line = len(lines)
+                
+                functions.append({
+                    "name": label_name,
+                    "line": line_num,
+                    "end_line": end_line,
+                    "args": [],
+                    "type": "label"
+                })
+                continue
+            
+            # Check for hotkeys
+            hotkey_match = re.match(hotkey_pattern, line)
+            if hotkey_match:
+                hotkey_name = hotkey_match.group(1)
+                
+                # Find the end of the hotkey
+                end_line = line_num
+                # If the hotkey is on the same line, it ends there
+                if line.strip().endswith('::'):
+                    # Multi-line hotkey, find until return or next hotkey/label
+                    for j in range(i + 1, len(lines)):
+                        next_line = lines[j].strip()
+                        if (re.match(label_pattern, next_line) or 
+                            re.match(hotkey_pattern, next_line) or
+                            re.match(func_pattern, next_line) or
+                            next_line.lower() == 'return'):
+                            end_line = j
+                            break
+                    else:
+                        end_line = len(lines)
+                
+                functions.append({
+                    "name": hotkey_name,
+                    "line": line_num,
+                    "end_line": end_line,
+                    "args": [],
+                    "type": "hotkey"
+                })
+                continue
+            
+            # Check for classes
+            class_match = re.match(class_pattern, line)
+            if class_match:
+                class_name = class_match.group(1)
+                extends = class_match.group(2) if class_match.group(2) else None
+                
+                # Find the end of the class by matching braces
+                end_line = line_num
+                brace_count = 1
+                
+                for j in range(i + 1, len(lines)):
+                    current_line = lines[j]
+                    brace_count += current_line.count('{') - current_line.count('}')
+                    if brace_count == 0:
+                        end_line = j + 1
+                        break
+                
+                classes.append({
+                    "name": class_name,
+                    "line": line_num,
+                    "end_line": end_line,
+                    "extends": extends
+                })
+                continue
+            
+            # Check for includes
+            include_match = re.match(include_pattern, line)
+            if include_match:
+                # Extract the filename from any of the three capture groups
+                filename = include_match.group(1) or include_match.group(2) or include_match.group(3)
+                if filename:
+                    imports.append(filename)
+        
+        return functions, classes, imports
